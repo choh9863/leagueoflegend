@@ -1,0 +1,197 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// NextAuth 관련 모델
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  image         String?
+  discordId     String?   @unique
+  accounts      Account[]
+  sessions      Session[]
+  summoners     Summoner[]
+  createdTournaments Tournament[] @relation("TournamentCreator")
+  participations TournamentParticipant[]
+  teamMemberships TeamMember[]
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// 소환사 정보
+model Summoner {
+  id            String   @id @default(cuid())
+  puuid         String   @unique
+  summonerId    String   @unique
+  summonerName  String
+  tagLine       String
+  profileIconId Int
+  summonerLevel Int
+  tier          String?  // IRON, BRONZE, SILVER, GOLD, PLATINUM, EMERALD, DIAMOND, MASTER, GRANDMASTER, CHALLENGER
+  rank          String?  // I, II, III, IV
+  leaguePoints  Int?
+  wins          Int      @default(0)
+  losses        Int      @default(0)
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  teamMembers   TeamMember[]
+  gameParticipants GameParticipant[]
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+// 토너먼트/내전
+model Tournament {
+  id              String   @id @default(cuid())
+  name            String
+  description     String?
+  format          String   @default("BO5") // BO1, BO3, BO5, BO7
+  winsRequired    Int      @default(3)
+  fearlessEnabled Boolean  @default(false)
+  status          String   @default("PENDING") // PENDING, IN_PROGRESS, COMPLETED, CANCELLED
+  creatorId       String
+  creator         User     @relation("TournamentCreator", fields: [creatorId], references: [id])
+  participants    TournamentParticipant[]
+  matches         Match[]
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+// 토너먼트 참가자
+model TournamentParticipant {
+  id           String     @id @default(cuid())
+  tournamentId String
+  tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  userId       String
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  team         String?    // BLUE, RED or null (not assigned)
+  createdAt    DateTime   @default(now())
+
+  @@unique([tournamentId, userId])
+}
+
+// 매치 (한 세트 내의 개별 게임)
+model Match {
+  id           String     @id @default(cuid())
+  tournamentId String
+  tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  matchNumber  Int        // 1, 2, 3, 4, 5...
+  riotMatchId  String?    @unique // Riot API에서 가져온 매치 ID
+  winner       String?    // BLUE, RED
+  status       String     @default("PENDING") // PENDING, IN_PROGRESS, COMPLETED
+  teams        Team[]
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+}
+
+// 팀 (매치별로 생성됨)
+model Team {
+  id        String       @id @default(cuid())
+  matchId   String
+  match     Match        @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  side      String       // BLUE, RED
+  members   TeamMember[]
+  createdAt DateTime     @default(now())
+}
+
+// 팀 멤버
+model TeamMember {
+  id         String   @id @default(cuid())
+  teamId     String
+  team       Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  summonerId String
+  summoner   Summoner @relation(fields: [summonerId], references: [id], onDelete: Cascade)
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role       String?  // TOP, JUNGLE, MID, ADC, SUPPORT
+  createdAt  DateTime @default(now())
+}
+
+// 게임 참가자 (게임 결과 기록)
+model GameParticipant {
+  id              String   @id @default(cuid())
+  riotMatchId     String
+  summonerId      String
+  summoner        Summoner @relation(fields: [summonerId], references: [id], onDelete: Cascade)
+  championId      Int
+  championName    String
+  teamId          String   // Riot API team ID (100 = Blue, 200 = Red)
+  teamPosition    String   // TOP, JUNGLE, MIDDLE, BOTTOM, UTILITY
+  win             Boolean
+  kills           Int
+  deaths          Int
+  assists         Int
+  totalDamageDealt Int
+  totalDamageToChampions Int
+  goldEarned      Int
+  cs              Int
+  visionScore     Int
+  wardsPlaced     Int
+  wardsKilled     Int
+  doubleKills     Int
+  tripleKills     Int
+  quadraKills     Int
+  pentaKills      Int
+  gameDuration    Int      // in seconds
+  createdAt       DateTime @default(now())
+
+  @@unique([riotMatchId, summonerId])
+}
+
+// 피어리스 밴 기록
+model FearlessBan {
+  id           String   @id @default(cuid())
+  tournamentId String
+  matchNumber  Int      // 이 매치 이후로 밴됨
+  summonerPuuid String
+  championId   Int
+  championName String
+  createdAt    DateTime @default(now())
+
+  @@unique([tournamentId, summonerPuuid, championId])
+}
