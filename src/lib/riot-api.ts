@@ -29,20 +29,29 @@ const REGION_ROUTING: Record<string, string> = {
 
 // API 요청 헬퍼
 async function riotRequest<T>(url: string): Promise<T> {
+  // API 키 확인
+  if (!RIOT_API_KEY) {
+    throw new Error('RIOT_API_KEY가 설정되지 않았습니다. .env.local 파일을 확인해주세요.');
+  }
+
   try {
     const response = await axios.get<T>(url, {
       headers: {
-        'X-Riot-Token': RIOT_API_KEY!,
+        'X-Riot-Token': RIOT_API_KEY,
       },
     });
     return response.data;
   } catch (error) {
     if (axios.isAxiosError(error)) {
+      console.error('Riot API Error:', error.response?.status, error.response?.data);
       if (error.response?.status === 404) {
         throw new Error('소환사를 찾을 수 없습니다.');
       }
+      if (error.response?.status === 401) {
+        throw new Error('API 키가 설정되지 않았습니다.');
+      }
       if (error.response?.status === 403) {
-        throw new Error('API 키가 유효하지 않습니다.');
+        throw new Error('API 키가 만료되었거나 유효하지 않습니다. Riot Developer Portal에서 새 키를 발급받으세요.');
       }
       if (error.response?.status === 429) {
         throw new Error('API 요청 한도를 초과했습니다. 잠시 후 다시 시도해주세요.');
