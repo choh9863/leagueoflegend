@@ -34,18 +34,34 @@ async function riotRequest<T>(url: string): Promise<T> {
     throw new Error('RIOT_API_KEY가 설정되지 않았습니다. .env.local 파일을 확인해주세요.');
   }
 
+  console.log('Riot API Request:', url);
+
   try {
     const response = await axios.get<T>(url, {
       headers: {
         'X-Riot-Token': RIOT_API_KEY,
       },
+      timeout: 10000, // 10초 타임아웃
     });
     return response.data;
   } catch (error) {
+    console.error('Riot API Error Details:', {
+      message: error instanceof Error ? error.message : 'Unknown error',
+      isAxiosError: axios.isAxiosError(error),
+      status: axios.isAxiosError(error) ? error.response?.status : undefined,
+      data: axios.isAxiosError(error) ? error.response?.data : undefined,
+      code: axios.isAxiosError(error) ? error.code : undefined,
+    });
+
     if (axios.isAxiosError(error)) {
-      console.error('Riot API Error:', error.response?.status, error.response?.data);
+      if (error.code === 'ECONNREFUSED' || error.code === 'ENOTFOUND') {
+        throw new Error('Riot API 서버에 연결할 수 없습니다. 네트워크를 확인해주세요.');
+      }
+      if (error.code === 'ETIMEDOUT' || error.code === 'ECONNABORTED') {
+        throw new Error('Riot API 요청 시간이 초과되었습니다. 다시 시도해주세요.');
+      }
       if (error.response?.status === 404) {
-        throw new Error('소환사를 찾을 수 없습니다.');
+        throw new Error('소환사를 찾을 수 없습니다. 게임 이름과 태그를 확인해주세요.');
       }
       if (error.response?.status === 401) {
         throw new Error('API 키가 설정되지 않았습니다.');
@@ -56,8 +72,13 @@ async function riotRequest<T>(url: string): Promise<T> {
       if (error.response?.status === 429) {
         throw new Error('API 요청 한도를 초과했습니다. 잠시 후 다시 시도해주세요.');
       }
+      if (error.response?.status) {
+        throw new Error(`Riot API 오류 (${error.response.status}): ${JSON.stringify(error.response.data)}`);
+      }
     }
-    throw new Error('Riot API 요청 중 오류가 발생했습니다.');
+
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    throw new Error(`Riot API 요청 실패: ${errorMessage}`);
   }
 }
 
