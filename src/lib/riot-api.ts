@@ -198,12 +198,19 @@ export async function getFullSummonerInfo(
 ) {
   // 1. Riot ID로 계정 정보
   const account = await getAccountByRiotId(gameName, tagLine, region);
+  console.log('Account Response:', account);
 
   // 2. 소환사 정보
   const summoner = await getSummonerByPuuid(account.puuid, region);
+  console.log('Summoner Response:', summoner);
 
-  // 3. 랭크 정보
-  const rankInfo = await getSoloRankInfo(summoner.id, region);
+  // 3. 랭크 정보 (summonerId가 있을 때만)
+  let rankInfo = null;
+  if (summoner.id) {
+    rankInfo = await getSoloRankInfo(summoner.id, region);
+  } else {
+    console.warn('Summoner ID not found, skipping rank info');
+  }
 
   return {
     puuid: account.puuid,
