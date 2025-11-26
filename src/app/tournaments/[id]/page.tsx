@@ -24,6 +24,8 @@ import {
   Plus,
   Check,
   X,
+  UserPlus,
+  Trash2,
 } from 'lucide-react';
 
 interface TournamentWithBans extends Tournament {
@@ -127,6 +129,42 @@ export default function TournamentDetailPage({ params }: { params: Promise<{ id:
       }
     } catch (err) {
       console.error('Failed to leave tournament:', err);
+    }
+  };
+
+  // 테스트 참가자 추가
+  const handleAddTestParticipants = async (count: number) => {
+    try {
+      const res = await fetch(`/api/tournaments/${resolvedParams.id}/test-participants`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ count }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setTournament(data);
+        alert(data.message);
+      }
+    } catch (err) {
+      console.error('Failed to add test participants:', err);
+    }
+  };
+
+  // 테스트 참가자 삭제
+  const handleRemoveTestParticipants = async () => {
+    try {
+      const res = await fetch(`/api/tournaments/${resolvedParams.id}/test-participants`, {
+        method: 'DELETE',
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setTournament(data);
+        alert(data.message);
+      }
+    } catch (err) {
+      console.error('Failed to remove test participants:', err);
     }
   };
 
@@ -333,6 +371,50 @@ export default function TournamentDetailPage({ params }: { params: Promise<{ id:
                 <X className="h-4 w-4 mr-2" />
                 참가 취소
               </Button>
+            </div>
+          )}
+
+          {/* 테스트 참가자 추가 (주최자용) */}
+          {isCreator && tournament.status === 'PENDING' && (
+            <div className="border-t pt-4">
+              <p className="text-sm font-medium mb-2 text-muted-foreground">테스트용 참가자 추가:</p>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleAddTestParticipants(2)}
+                >
+                  <UserPlus className="h-4 w-4 mr-1" />
+                  +2명
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleAddTestParticipants(5)}
+                >
+                  <UserPlus className="h-4 w-4 mr-1" />
+                  +5명
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleAddTestParticipants(10)}
+                >
+                  <UserPlus className="h-4 w-4 mr-1" />
+                  +10명
+                </Button>
+                {tournament.participants.length > 0 && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleRemoveTestParticipants}
+                    className="text-destructive hover:text-destructive"
+                  >
+                    <Trash2 className="h-4 w-4 mr-1" />
+                    테스트 참가자 삭제
+                  </Button>
+                )}
+              </div>
             </div>
           )}
         </CardContent>
