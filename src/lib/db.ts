@@ -180,13 +180,15 @@ export const tournaments = {
     return this.getAll().filter(t => t.creatorId === creatorId);
   },
 
-  create(tournament: Omit<Tournament, 'id' | 'createdAt' | 'updatedAt' | 'participants' | 'matches' | 'blueScore' | 'redScore'>): Tournament {
+  create(tournament: Omit<Tournament, 'id' | 'createdAt' | 'updatedAt' | 'participants' | 'matches' | 'blueTeam' | 'redTeam' | 'blueScore' | 'redScore'>): Tournament {
     const tournaments = this.getAll();
     const newTournament: Tournament = {
       ...tournament,
       id: generateId(),
       participants: [],
       matches: [],
+      blueTeam: [],
+      redTeam: [],
       blueScore: 0,
       redScore: 0,
       createdAt: new Date().toISOString(),

@@ -40,6 +40,8 @@ export interface Tournament {
   creatorId: string;
   participants: TournamentParticipant[];
   matches: Match[];
+  blueTeam: TeamMember[];  // 고정된 블루팀
+  redTeam: TeamMember[];   // 고정된 레드팀
   blueScore: number;
   redScore: number;
   createdAt: string;

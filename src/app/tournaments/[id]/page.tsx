@@ -26,6 +26,7 @@ import {
   X,
   UserPlus,
   Trash2,
+  Lock,
 } from 'lucide-react';
 
 interface TournamentWithBans extends Tournament {
@@ -47,6 +48,8 @@ export default function TournamentDetailPage({ params }: { params: Promise<{ id:
   const [redTeam, setRedTeam] = useState<TeamMember[]>([]);
   const [blueMMR, setBlueMMR] = useState(0);
   const [redMMR, setRedMMR] = useState(0);
+  const [teamsConfirmed, setTeamsConfirmed] = useState(false);
+  const [savingTeams, setSavingTeams] = useState(false);
 
   // 매치 결과 등록
   const [showMatchInput, setShowMatchInput] = useState(false);
@@ -63,6 +66,20 @@ export default function TournamentDetailPage({ params }: { params: Promise<{ id:
       fetchSummoners();
     }
   }, [resolvedParams.id, session]);
+
+  // 저장된 팀 구성 로드
+  useEffect(() => {
+    if (tournament) {
+      if (tournament.blueTeam && tournament.blueTeam.length > 0) {
+        setBlueTeam(tournament.blueTeam);
+        setTeamsConfirmed(true);
+      }
+      if (tournament.redTeam && tournament.redTeam.length > 0) {
+        setRedTeam(tournament.redTeam);
+        setTeamsConfirmed(true);
+      }
+    }
+  }, [tournament?.id]);
 
   const fetchTournament = async () => {
     try {
@@ -183,11 +200,44 @@ export default function TournamentDetailPage({ params }: { params: Promise<{ id:
         setRedTeam(data.redTeam);
         setBlueMMR(data.blueTotalMMR);
         setRedMMR(data.redTotalMMR);
+        setTeamsConfirmed(false); // 새로 밸런스 맞추면 확정 해제
       }
     } catch (err) {
       console.error('Failed to balance teams:', err);
     } finally {
       setBalancing(false);
+    }
+  };
+
+  // 팀 확정 (저장)
+  const handleConfirmTeams = async () => {
+    if (blueTeam.length === 0 || redTeam.length === 0) {
+      alert('팀 구성을 먼저 해주세요.');
+      return;
+    }
+
+    setSavingTeams(true);
+    try {
+      const res = await fetch(`/api/tournaments/${resolvedParams.id}/balance`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ blueTeam, redTeam }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setTournament(data);
+        setTeamsConfirmed(true);
+        alert('팀 구성이 확정되었습니다.');
+      } else {
+        const error = await res.json();
+        alert(error.error || '팀 저장에 실패했습니다.');
+      }
+    } catch (err) {
+      console.error('Failed to confirm teams:', err);
+      alert('팀 저장에 실패했습니다.');
+    } finally {
+      setSavingTeams(false);
     }
   };
 
@@ -240,9 +290,7 @@ export default function TournamentDetailPage({ params }: { params: Promise<{ id:
         setShowMatchInput(false);
         setRiotMatchId('');
         setManualWinner(null);
-        // 팀 초기화
-        setBlueTeam([]);
-        setRedTeam([]);
+        // 팀은 유지 (내전 전체에서 동일한 팀으로 진행)
       }
     } catch (err) {
       console.error('Failed to register result:', err);
@@ -427,30 +475,50 @@ export default function TournamentDetailPage({ params }: { params: Promise<{ id:
             <CardTitle className="flex items-center gap-2">
               <Scale className="h-5 w-5" />
               팀 구성
+              {tournament.matches.length > 0 && (
+                <Badge variant="secondary" className="ml-2">
+                  <Lock className="h-3 w-3 mr-1" />
+                  잠김
+                </Badge>
+              )}
             </CardTitle>
             <CardDescription>
-              팀 밸런스를 맞추고 게임을 시작하세요.
+              {teamsConfirmed
+                ? tournament.matches.length > 0
+                  ? '팀이 확정되어 게임이 진행 중입니다.'
+                  : '팀이 확정되었습니다. 게임을 시작할 수 있습니다.'
+                : '팀 밸런스를 맞추고 확정하세요. 확정된 팀으로 모든 게임을 진행합니다.'}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             {/* 밸런스 버튼 */}
-            <div className="flex gap-2">
-              <Button
-                onClick={() => handleBalance('balanced')}
-                disabled={balancing || tournament.participants.length < 2}
-              >
-                <Scale className="h-4 w-4 mr-2" />
-                밸런스 맞추기
-              </Button>
-              <Button
-                variant="outline"
-                onClick={() => handleBalance('random')}
-                disabled={balancing || tournament.participants.length < 2}
-              >
-                <Shuffle className="h-4 w-4 mr-2" />
-                랜덤 배정
-              </Button>
-            </div>
+            {!teamsConfirmed && tournament.matches.length === 0 && (
+              <div className="flex gap-2">
+                <Button
+                  onClick={() => handleBalance('balanced')}
+                  disabled={balancing || tournament.participants.length < 2}
+                >
+                  <Scale className="h-4 w-4 mr-2" />
+                  밸런스 맞추기
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => handleBalance('random')}
+                  disabled={balancing || tournament.participants.length < 2}
+                >
+                  <Shuffle className="h-4 w-4 mr-2" />
+                  랜덤 배정
+                </Button>
+              </div>
+            )}
+
+            {/* 팀 확정 상태 표시 */}
+            {teamsConfirmed && (
+              <div className="bg-green-500/10 border border-green-500/20 rounded-lg px-4 py-2 flex items-center gap-2">
+                <Check className="h-4 w-4 text-green-500" />
+                <span className="text-green-500 text-sm font-medium">팀 구성이 확정되었습니다. 이 팀으로 모든 게임을 진행합니다.</span>
+              </div>
+            )}
 
             {/* 팀 표시 */}
             {(blueTeam.length > 0 || redTeam.length > 0) && (
@@ -460,8 +528,52 @@ export default function TournamentDetailPage({ params }: { params: Promise<{ id:
               </div>
             )}
 
+            {/* 팀 확정 버튼 */}
+            {blueTeam.length > 0 && redTeam.length > 0 && !teamsConfirmed && (
+              <div className="flex gap-2">
+                <Button
+                  onClick={handleConfirmTeams}
+                  disabled={savingTeams}
+                  className="flex-1"
+                  variant="default"
+                >
+                  <Check className="h-4 w-4 mr-2" />
+                  {savingTeams ? '저장 중...' : '팀 확정'}
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setBlueTeam([]);
+                    setRedTeam([]);
+                    setBlueMMR(0);
+                    setRedMMR(0);
+                  }}
+                >
+                  <X className="h-4 w-4 mr-2" />
+                  초기화
+                </Button>
+              </div>
+            )}
+
+            {/* 팀 재구성 버튼 (확정된 경우, 게임 시작 전에만) */}
+            {teamsConfirmed && tournament.matches.length === 0 && (
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setTeamsConfirmed(false);
+                  setBlueTeam([]);
+                  setRedTeam([]);
+                  setBlueMMR(0);
+                  setRedMMR(0);
+                }}
+              >
+                <Shuffle className="h-4 w-4 mr-2" />
+                팀 재구성
+              </Button>
+            )}
+
             {/* 매치 시작/결과 등록 */}
-            {blueTeam.length > 0 && redTeam.length > 0 && !currentMatchPending && (
+            {teamsConfirmed && blueTeam.length > 0 && redTeam.length > 0 && !currentMatchPending && (
               <Button onClick={handleStartMatch} className="w-full">
                 <Play className="h-4 w-4 mr-2" />
                 게임 {tournament.matches.length + 1} 시작
@@ -508,6 +620,30 @@ export default function TournamentDetailPage({ params }: { params: Promise<{ id:
                 </Button>
               </div>
             )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* 확정된 팀 표시 (비주최자용 또는 완료된 토너먼트) */}
+      {(!isCreator || isCompleted) && tournament.blueTeam && tournament.blueTeam.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Users className="h-5 w-5" />
+              팀 구성
+              {tournament.matches.length > 0 && (
+                <Badge variant="secondary" className="ml-2">
+                  <Lock className="h-3 w-3 mr-1" />
+                  확정됨
+                </Badge>
+              )}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid md:grid-cols-2 gap-4">
+              <TeamDisplay team={tournament.blueTeam} side="BLUE" />
+              <TeamDisplay team={tournament.redTeam} side="RED" />
+            </div>
           </CardContent>
         </Card>
       )}
